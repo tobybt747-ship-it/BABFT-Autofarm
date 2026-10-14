@@ -1,54 +1,64 @@
 --[[
-	Auto Farm Premium - loader for
-	https://github.com/tobybt747-ship-it/BABFT-Autofarm
+	ONE-LINE LOADER (local, no network)
+	====================================
+	Put premium.lua in your executor's workspace folder, then paste this whole
+	file into Xeno's executor and hit Execute.
 
-	Paste the single line from README.md instead of this file if you prefer.
-	Paste this file if the raw URL is blocked in your executor.
+	- No HttpGet, no network, no paste site.
+	- Works in Xeno and in any executor that implements readfile.
+	- If premium.lua sits next to this loader, it is found automatically.
+
+	For a single-line paste instead of this file, see loader-oneliner.lua.
 ]]
 
-local URLS = {
-	"https://raw.githubusercontent.com/tobybt747-ship-it/BABFT-Autofarm/refs/heads/main/premium.lua",
-	"https://raw.githubusercontent.com/tobybt747-ship-it/BABFT-Autofarm/main/premium.lua",
-}
+local SCRIPT_NAME = "premium.lua"
 
-local LOCAL = { "premium.lua", "workspace/premium.lua" }
-
-local function fromDisk()
+local function findSource()
 	if type(readfile) ~= "function" then
-		return nil
+		return nil, "this executor has no readfile()"
 	end
-	for i = 1, #LOCAL do
-		local ok, contents = pcall(readfile, LOCAL[i])
+
+	local candidates = {
+		SCRIPT_NAME,
+		"workspace/" .. SCRIPT_NAME,
+		"AutoBuild/" .. SCRIPT_NAME,
+	}
+
+	for i = 1, #candidates do
+		local ok, contents = pcall(readfile, candidates[i])
 		if ok and contents and #contents > 0 then
-			return contents
+			return contents, candidates[i]
 		end
 	end
-	return nil
-end
 
-local function fromNetwork()
-	if type(game) ~= "table" or type(game.HttpGet) ~= "function" then
-		return nil
-	end
-	for i = 1, #URLS do
-		local ok, contents = pcall(function()
-			return game:HttpGet(URLS[i])
-		end)
-		if ok and contents and #contents > 0 then
-			return contents
+	-- Fall back to any .lua already sitting in the workspace folder.
+	if type(listfiles) == "function" then
+		local ok, files = pcall(listfiles, ".")
+		if ok and files then
+			for i = 1, #files do
+				local entry = tostring(files[i])
+				if string.lower(entry):find(".lua", 1, true) then
+					local readOk, contents = pcall(readfile, entry)
+					if readOk and contents and #contents > 0 then
+						return contents, entry
+					end
+				end
+			end
 		end
 	end
-	return nil
+
+	return nil, "could not find " .. SCRIPT_NAME .. " in the workspace folder"
 end
 
-local source = fromNetwork() or fromDisk()
+local source, where = findSource()
 
 if not source then
-	warn("Auto Farm Premium: could not fetch premium.lua and none was found locally.")
+	warn("Auto Farm Premium: " .. tostring(where))
+	warn("Save premium.lua into your executor's workspace folder and re-run this loader.")
 	return
 end
 
-warn("Auto Farm Premium: loaded " .. #source .. " bytes")
+warn("Auto Farm Premium: loading " .. tostring(where) .. " (" .. #source .. " bytes)")
 
 local chunk, compileError = loadstring(source, "AutoFarmPremium")
 if not chunk then
